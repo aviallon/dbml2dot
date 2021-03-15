@@ -1,0 +1,6 @@
+*.dot
+*.svg
+*.dbml
+venv/
+.idea/
+**/__pycache__/**
