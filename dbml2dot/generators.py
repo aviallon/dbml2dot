@@ -1,3 +1,4 @@
+import math
 from textwrap import dedent
 import pydbml.classes
 import pydot
@@ -12,7 +13,7 @@ def generate_table_label(name: str, attributes: list[str]):
     attribute_list_str = "\n".join(attribute_list)
     return dedent(f'''
         <<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="1">
-        <TR><TD><B>{name}</B></TD></TR>
+        <TR><TD><B>{name}</B></TD></TR><HR></HR>
         {attribute_list_str}
         </TABLE>>''').strip().replace('\n', '\n\t')
 
@@ -33,7 +34,8 @@ def generate_column_node(name: str, column_attributes: pydbml.classes.Column, en
     return attribute_str, enums_used
 
 
-def generate_table_nodes(name: str, contents: pydbml.classes.Table, enums: list[str]) -> tuple[pydot.Node, list[pydot.Edge]]:
+def generate_table_nodes(name: str, contents: pydbml.classes.Table, enums: list[str]) -> tuple[
+    pydot.Node, list[pydot.Edge]]:
     debug(f"{name}: {contents}")
 
     attributes = []
@@ -64,15 +66,15 @@ def generate_table_nodes(name: str, contents: pydbml.classes.Table, enums: list[
 def generate_graph_from_dbml(dbml: pydbml.PyDBML) -> pydot.Graph:
     graph = pydot.Graph()
     graph.set_node_defaults(fontname="Bitstream Vera Sans", fontsize=8, shape="none")
-    graph.set_edge_defaults(fontname="Bitstream Vera Sans", fontsize=8)
-    graph.set_graph_defaults(splines='ortho')
+    graph.set_edge_defaults(fontname="Bitstream Vera Sans", fontsize=8, labeldistance=2, color="grey")
+    graph.set_graph_defaults(rankdir='LR')
     enums = []
     for enum in dbml.enums:
         enum: pydbml.classes.Enum = enum
 
         graph.add_node(pydot.Node(
             enum.name,
-            label=generate_table_label(enum.name, enum.items)
+            label=generate_table_label(f"<I>Enum</I><BR></BR>{enum.name}", enum.items)
         ))
 
         enums.append(enum.name.strip())
@@ -90,12 +92,27 @@ def generate_graph_from_dbml(dbml: pydbml.PyDBML) -> pydot.Graph:
     for reference in dbml.refs:
         reference: pydbml.classes.Reference = reference
 
+        orig = reference.col1.name
+        dest = reference.col2.name
+
+        label_len = (len(dest) + len(orig))
+
+        if reference.table1.name == reference.table2.name:
+            debug("Origin and destination are identical", reference.table1.name)
+            for i in range(label_len // 8):
+                graph.add_edge(pydot.Edge(reference.table1.name, reference.table2.name, style="invis"))
+                # graph.
+
         graph.add_edge(pydot.Edge(
             reference.table1.name, reference.table2.name,
-            xlabel=f"{reference.col1.name} {reference.type} {reference.col2.name}"
+            headlabel=dest,
+            taillabel=orig,
+            xlabel=" " * label_len*2,
+            minlen=int(math.sqrt(1+label_len/2))
+            # xlabel=f"{reference.col1.name} {reference.type} {reference.col2.name}"
         ))
 
-    graph.set_simplify(True)
+    # graph.set_simplify(True)
     graph.set_type("digraph")
 
     return graph
