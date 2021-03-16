@@ -3,6 +3,14 @@
 version="$1"; shift
 message="$@"
 
+if [ -z "$version" ]; then
+	echo "Version must not be empty"
+	exit 1
+fi
+if [ -z "$message" ]; then
+	echo "Message must not be empty"
+	exit 1
+fi
 pip install --upgrade .
 
 rm -Rvf dist/
