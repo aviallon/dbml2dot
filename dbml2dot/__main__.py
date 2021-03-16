@@ -1,26 +1,9 @@
-from textwrap import dedent
-
-import pydbml
 import pydbml.classes
 import pathlib
-import pydot
 import argparse
 
-DEBUG = False
-
-
-def generate_table_label(name: str, attribute_list: list[str]):
-    attribute_list_str: str = ""
-    for attr in attribute_list:
-        attribute_list_str += f""""<TR><TD align="left">{attr}</TD></TR>\n"""
-    return dedent(
-        f'''<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="1">
-            <TR><TD><B>{name}</B></TD></TR><HR />
-            {attribute_list_str}
-        </TABLE>>
-        '''
-    )
-
+from dbml2dot.generators import generate_graph_from_dbml
+from dbml2dot.utils import debug, set_debug
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog="dbml2dot")
@@ -41,7 +24,7 @@ if __name__ == '__main__':
 
     output_path = None
 
-    DEBUG = args.debug
+    set_debug(args.debug)
 
     if args.output is None:
         output_path = input_path.with_suffix('.dot')
@@ -52,76 +35,14 @@ if __name__ == '__main__':
         input_data = f.read()
 
     dbml = pydbml.PyDBML(input_data)
-    graph = pydot.Graph()
-    graph.set_node_defaults(fontname="Bitstream Vera Sans", fontsize=8, shape="none")
-    graph.set_edge_defaults(fontname="Bitstream Vera Sans", fontsize=8)
-
-    enums = []
-    for enum in dbml.enums:
-        enum: pydbml.classes.Enum = enum
-
-        graph.add_node(pydot.Node(
-            enum.name,
-            label=generate_table_label(enum.name, enum.items)
-        ))
-
-        enums.append(enum.name.strip())
-
-    if DEBUG:
-        print(f"{enums=}")
-
-    if DEBUG:
-        print("Tables:")
-    for table_name, table_contents in dbml.table_dict.items():
-        table_contents: pydbml.classes.Table
-        if DEBUG:
-            print(f"{table_name}: {table_contents}")
-
-        attributes = []
-        for column_name, column_attributes in table_contents.column_dict.items():
-            column_attributes: pydbml.classes.Column = column_attributes
-            not_null_string = "" if column_attributes.not_null or column_attributes.pk else "?"
-            col_string = f"{column_name}{not_null_string}"
-            if column_attributes.pk:
-                col_string = f"<B>{col_string}</B>"
-            if column_attributes.unique:
-                col_string = f"<I>{col_string}</I>"
-
-            attribute_str = f"{col_string} : {column_attributes.type}"
-            attributes += [attribute_str]
-
-            if str(column_attributes.type).strip() in enums:
-                if DEBUG:
-                    print(f"{column_attributes.type} is in enums")
-                graph.add_edge(pydot.Edge(
-                    str(column_attributes.type), table_name,
-                    style="invis"
-                ))
-
-        label = generate_table_label(table_name, attributes)
-        graph.add_node(pydot.Node(
-            table_name,
-            label=label
-        ))
-
-    for reference in dbml.refs:
-        reference: pydbml.classes.Reference = reference
-
-        graph.add_edge(pydot.Edge(
-            reference.table1.name, reference.table2.name,
-            label=f"{reference.col1.name} {reference.type} {reference.col2.name}"
-        ))
+    graph = generate_graph_from_dbml(dbml)
 
     with open(output_path, "w") as f:
         f.write(graph.to_string())
-
-    graph.set_simplify(True)
-    graph.set_type("digraph")
 
     if args.type != "none":
         from subprocess import check_call
 
         check_call(['dot', f'-T{args.type}', output_path.absolute(), '-o', output_path.with_suffix('.svg').absolute()])
 
-    if DEBUG:
-        print(f"Input: {input_path}, Output: {output_path}")
+    debug(f"Input: {input_path}, Output: {output_path}")
